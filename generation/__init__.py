@@ -1,2 +1,5 @@
 # Пакет генерации. Сюда приходят результаты поиска из retrieval
 # Здесь составляется промпт и производится работа с LLM. Отдаёт ответ llm
+from .generator import generate_answer
+
+__all__ = ["generate_answer"]
