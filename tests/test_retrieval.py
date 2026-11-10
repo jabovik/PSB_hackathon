@@ -1,14 +1,18 @@
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import patch
+from unittest.mock import Mock
 
 # Keep imports working both in unittest discovery and when this file is run directly.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.schemas import Chunk
+from app.schemas import Chunk, SearchResult
+from embeddings import EmbeddingClient
 from retrieval.Retriever import Retriever
 from retrieval.bm25 import BM25Search
 from retrieval.hybrid_search import HybridSearch
+from retrieval.reranker import Reranker
 from retrieval.vector_search import VectorSearch
 
 
@@ -92,9 +96,138 @@ class RetrieverTests(unittest.TestCase):
     def test_returns_chunks_in_search_order(self):
         relevant = Chunk(0, "doc-1", "Расторжение договора")
         unrelated = Chunk(1, "doc-1", "Погода в Лондоне")
-        retriever = Retriever([unrelated, relevant], "расторжение договора")
+        retriever = Retriever([unrelated, relevant])
 
-        self.assertEqual([relevant], retriever.retrieve(top_k=1))
+        self.assertEqual([relevant], retriever.retrieve("расторжение договора", top_k=1))
+
+    def test_creates_query_embedding_from_question(self):
+        best = Chunk(0, "doc-1", "alpha", [1.0, 0.0])
+        other = Chunk(1, "doc-1", "beta", [0.0, 1.0])
+        embedding_client = Mock(spec=EmbeddingClient)
+        embedding_client.embed_text.return_value = [1.0, 0.0]
+        retriever = Retriever([other, best], embedding_client=embedding_client)
+
+        self.assertEqual([best], retriever.retrieve("meaning of life", top_k=1))
+        embedding_client.embed_text.assert_called_once_with("meaning of life")
+
+    def test_sends_candidates_to_reranker_and_returns_its_order(self):
+        first = Chunk(0, "doc-1", "contract first")
+        second = Chunk(1, "doc-1", "contract second")
+        reranker = Mock()
+        reranker.rerank.side_effect = lambda question, candidates, top_k: [
+            candidates[1], candidates[0]
+        ][:top_k]
+        retriever = Retriever([first, second], reranker=reranker)
+
+        results = retriever.retrieve("contract", top_k=2, candidate_k=2)
+
+        self.assertEqual([second, first], results)
+        reranker.rerank.assert_called_once()
+
+
+class RerankerTests(unittest.TestCase):
+    def test_posts_candidates_and_returns_reranked_results(self):
+        first = Chunk(0, "doc-1", "first text")
+        second = Chunk(1, "doc-1", "second text")
+        candidates = [
+            SearchResult(chunk=first, score=0.4),
+            SearchResult(chunk=second, score=0.3),
+        ]
+        client = Mock()
+        response = client.post.return_value
+        response.json.return_value = {
+            "results": [
+                {"index": 1, "relevance_score": 0.95},
+                {"index": 0, "relevance_score": 0.2},
+            ]
+        }
+        reranker = Reranker(client, "https://api.example/v1/", "test-key", "test-model")
+
+        results = reranker.rerank("question", candidates, top_k=1)
+
+        self.assertEqual([second], [result.chunk for result in results])
+        self.assertEqual(0.95, results[0].score)
+        client.post.assert_called_once_with(
+            "https://api.example/v1/rerank",
+            headers={"Authorization": "Bearer test-key"},
+            json={
+                "model": "test-model",
+                "query": "question",
+                "documents": ["first text", "second text"],
+                "top_n": 1,
+            },
+        )
+
+    def test_returns_empty_for_non_positive_top_k(self):
+        client = Mock()
+        reranker = Reranker(client, "https://api.example/v1", "test-key")
+
+        self.assertEqual([], reranker.rerank("question", [], top_k=0))
+        client.post.assert_not_called()
+
+    def test_from_env_reads_platform_settings(self):
+        client = Mock()
+        env = {
+            "LLM_BASE_URL": "https://api.example/v1/",
+            "RERANKER_API_KEY": "rerank-key",
+            "RERANKER_MODEL": "custom-reranker",
+        }
+
+        with patch.dict("os.environ", env, clear=True):
+            reranker = Reranker.from_env(client)
+
+        self.assertIs(reranker.client, client)
+        self.assertEqual("https://api.example/v1/rerank", reranker.url)
+        self.assertEqual("rerank-key", reranker.api_key)
+        self.assertEqual("custom-reranker", reranker.model)
+
+
+class EmbeddingClientTests(unittest.TestCase):
+    def setUp(self):
+        self.client = Mock()
+        self.response = self.client.post.return_value
+        self.embedder = EmbeddingClient(
+            self.client,
+            "https://api.example/v1/",
+            "test-key",
+            "test-model",
+        )
+
+    def test_embeds_texts_in_input_order_and_normalizes_vectors(self):
+        self.response.json.return_value = {
+            "data": [
+                {"index": 1, "embedding": [0.0, 2.0]},
+                {"index": 0, "embedding": [3.0, 4.0]},
+            ]
+        }
+
+        vectors = self.embedder.embed_texts(["first", "second"])
+
+        self.assertEqual([[0.6, 0.8], [0.0, 1.0]], vectors)
+        self.client.post.assert_called_once_with(
+            "https://api.example/v1/embeddings",
+            headers={"Authorization": "Bearer test-key"},
+            json={
+                "model": "test-model",
+                "input": ["first", "second"],
+                "encoding_format": "float",
+            },
+        )
+
+    def test_embed_text_stores_embeddings_on_chunks(self):
+        self.response.json.return_value = {
+            "data": [{"index": 0, "embedding": [3.0, 4.0]}]
+        }
+        chunk = Chunk(0, "doc-1", "chunk text")
+
+        result = self.embedder.embed_chunks([chunk])
+
+        self.assertIs(result[0], chunk)
+        self.assertEqual([0.6, 0.8], chunk.embedding)
+
+    def test_empty_input_does_not_call_api(self):
+        self.assertEqual([], self.embedder.embed_texts([]))
+        self.client.post.assert_not_called()
 
 
 if __name__ == "__main__":
