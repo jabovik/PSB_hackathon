@@ -9,6 +9,7 @@ def tokenize(text: str) -> list[str]:
 
 
 class BM25Search:
+    """Simple keyword search. No lemmatization or other text normalization methods"""
 
     def __init__(self, chunks: list[Chunk]):
         self.chunks = chunks
