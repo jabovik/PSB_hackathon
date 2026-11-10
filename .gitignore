@@ -1,2 +1,28 @@
+# данные задачи
 data/
+
+# python
 __pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# секреты
+.env
+.env.*
+!.env.example
+
+# артефакты запуска
+submission.csv
+*.log
+.chroma/
+indexes/
+.cache/
+
+# редакторы и ОС
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
