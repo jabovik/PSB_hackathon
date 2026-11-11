@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -35,7 +36,6 @@ def chunk_document(
     max_chars: int = DEFAULT_CHUNK_SIZE,
     overlap_chars: int = DEFAULT_CHUNK_OVERLAP,
 ) -> list[Chunk]:
-
     if not isinstance(document, Document):
         raise TypeError("document должен быть объектом app.schemas.Document")
     if start_chunk_id < 1:
@@ -63,18 +63,42 @@ def chunk_document(
         length_function=len,
     )
 
-    pieces = splitter.split_text(text)
-    chunks: list[Chunk] = []
-
-    for piece in pieces:
-        chunk_text = prefix + piece.strip()
-        chunks.append(
-            Chunk(
-                id=start_chunk_id + len(chunks),
-                document_id=document.id,
-                text=chunk_text,
-                embedding=None,
+    chunks = []
+    for piece in splitter.split_text(text):
+        piece = piece.strip()
+        if piece:
+            chunks.append(
+                Chunk(
+                    id=start_chunk_id + len(chunks),
+                    document_id=str(document.id),
+                    text=prefix + piece,
+                    embedding=None,
+                )
             )
+    return chunks
+
+
+def chunk_documents(
+    documents: Sequence[Document],
+    max_chars: int = DEFAULT_CHUNK_SIZE,
+    overlap_chars: int = DEFAULT_CHUNK_OVERLAP,
+) -> list[Chunk]:
+    chunks: list[Chunk] = []
+    next_chunk_id = 1
+    seen_document_ids: set[int] = set()
+
+    for document in documents:
+        if document.id in seen_document_ids:
+            raise ValueError(f"Повторяется Document.id={document.id}")
+        seen_document_ids.add(document.id)
+
+        document_chunks = chunk_document(
+            document,
+            start_chunk_id=next_chunk_id,
+            max_chars=max_chars,
+            overlap_chars=overlap_chars,
         )
+        chunks.extend(document_chunks)
+        next_chunk_id += len(document_chunks)
 
     return chunks
