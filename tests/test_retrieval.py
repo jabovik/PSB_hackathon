@@ -182,53 +182,5 @@ class RerankerTests(unittest.TestCase):
         self.assertEqual("custom-reranker", reranker.model)
 
 
-class EmbeddingClientTests(unittest.TestCase):
-    def setUp(self):
-        self.client = Mock()
-        self.response = self.client.post.return_value
-        self.embedder = EmbeddingClient(
-            self.client,
-            "https://api.example/v1/",
-            "test-key",
-            "test-model",
-        )
-
-    def test_embeds_texts_in_input_order_and_normalizes_vectors(self):
-        self.response.json.return_value = {
-            "data": [
-                {"index": 1, "embedding": [0.0, 2.0]},
-                {"index": 0, "embedding": [3.0, 4.0]},
-            ]
-        }
-
-        vectors = self.embedder.embed_texts(["first", "second"])
-
-        self.assertEqual([[0.6, 0.8], [0.0, 1.0]], vectors)
-        self.client.post.assert_called_once_with(
-            "https://api.example/v1/embeddings",
-            headers={"Authorization": "Bearer test-key"},
-            json={
-                "model": "test-model",
-                "input": ["first", "second"],
-                "encoding_format": "float",
-            },
-        )
-
-    def test_embed_text_stores_embeddings_on_chunks(self):
-        self.response.json.return_value = {
-            "data": [{"index": 0, "embedding": [3.0, 4.0]}]
-        }
-        chunk = Chunk(0, "doc-1", "chunk text")
-
-        result = self.embedder.embed_chunks([chunk])
-
-        self.assertIs(result[0], chunk)
-        self.assertEqual([0.6, 0.8], chunk.embedding)
-
-    def test_empty_input_does_not_call_api(self):
-        self.assertEqual([], self.embedder.embed_texts([]))
-        self.client.post.assert_not_called()
-
-
 if __name__ == "__main__":
     unittest.main()

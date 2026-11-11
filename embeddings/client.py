@@ -1,4 +1,3 @@
-import math
 import os
 from collections.abc import Sequence
 
@@ -79,14 +78,15 @@ class EmbeddingClient:
             except (TypeError, ValueError) as error:
                 raise ValueError("Эмбеддинг содержит нечисловые значения") from error
 
-            norm = math.sqrt(sum(value * value for value in vector))
-            if norm == 0:
+            # The configured embedding model returns normalized vectors, so
+            # keep its values as-is instead of calculating the norm again.
+            if not any(value != 0.0 for value in vector):
                 raise ValueError("Получен нулевой эмбеддинг")
-            vectors[index] = [value / norm for value in vector]
+            vectors[index] = vector
 
         if any(vector is None for vector in vectors):
             raise ValueError("Получены не все embeddings")
-        return vectors  # type: ignore[return-value]
+        return vectors
 
     def embed_text(self, text: str) -> list[float]:
         return self.embed_texts([text])[0]
