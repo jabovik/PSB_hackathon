@@ -3,7 +3,7 @@ from collections.abc import Sequence
 
 import httpx
 
-from app.schemas import Chunk
+from schemas import Chunk
 
 
 class EmbeddingClient:

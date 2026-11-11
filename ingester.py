@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app.schemas import Chunk
-from embeddings import EmbeddingClient
+from schemas import Chunk
+from embedding_client import EmbeddingClient
 
-from .archive_reader import read_archive
-from .document_chunker import (
+from archive_reader import read_archive
+from document_chunker import (
     DEFAULT_CHUNK_OVERLAP,
     DEFAULT_CHUNK_SIZE,
     chunk_documents,

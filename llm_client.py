@@ -6,7 +6,7 @@ import time
 
 import httpx
 
-from .config import GenConfig
+from gen_config import GenConfig
 
 
 class LLMClient:

@@ -7,8 +7,8 @@ import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from app import App
-from generation.postprocess import FALLBACK
+from application import App
+from gen_postprocess import FALLBACK
 
 
 def _load_questions(path: Path) -> list[tuple[str, str]]:

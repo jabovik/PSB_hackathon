@@ -1,6 +1,6 @@
 from math import sqrt
 
-from app.schemas import Chunk, SearchResult
+from schemas import Chunk, SearchResult
 
 
 class VectorSearch:
