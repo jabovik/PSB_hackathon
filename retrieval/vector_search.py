@@ -31,7 +31,7 @@ class VectorSearch:
             if chunk_norm == 0:
                 continue
 
-            score = sum(q * d for q, d in zip(query_embedding, embedding)) / (query_norm * chunk_norm)
+            score = sum(q * d for q, d in zip(query_embedding, embedding)) # scalar product. Embeddings are normalized, so this is equal to cosine similarity.
             ranked.append(SearchResult(chunk=chunk, score=float(score)))
 
         ranked.sort(key=lambda result: result.score, reverse=True)
