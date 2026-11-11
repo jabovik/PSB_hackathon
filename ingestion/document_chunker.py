@@ -70,7 +70,7 @@ def chunk_document(
             chunks.append(
                 Chunk(
                     id=start_chunk_id + len(chunks),
-                    document_id=str(document.id),
+                    document_id=document.id,
                     text=prefix + piece,
                     embedding=None,
                 )
