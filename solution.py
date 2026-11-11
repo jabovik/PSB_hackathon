@@ -4,11 +4,28 @@ from __future__ import annotations
 
 import csv
 import os
+import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from application import App
 from gen_postprocess import FALLBACK
+
+KNOWLEDGE_BASE_NAMES = ("kb.zip", "knowledge_base.zip", "knowledge-base.zip")
+
+
+def _find_knowledge_base(data_dir: Path) -> Path:
+    """Платформа кладёт базу под разными именами — берём первый найденный архив."""
+    for name in KNOWLEDGE_BASE_NAMES:
+        path = data_dir / name
+        if path.is_file():
+            return path
+    archives = sorted(data_dir.glob("*.zip"))
+    if archives:
+        return archives[0]
+    raise FileNotFoundError(
+        f"В {data_dir} нет архива базы знаний (искали {', '.join(KNOWLEDGE_BASE_NAMES)})"
+    )
 
 
 def _load_questions(path: Path) -> list[tuple[str, str]]:
@@ -37,7 +54,7 @@ def _answer_one(
 def main() -> None:
     data_dir = Path(os.getenv("DATA_DIR", "data"))
     questions = _load_questions(data_dir / "questions.csv")
-    knowledge_base_path = data_dir / "kb.zip"
+    knowledge_base_path = _find_knowledge_base(data_dir)
 
     # TOP_K задаёт размер выборки перед реранжированием,
     # RERANKER_TOP_N — число чанков, передаваемых генератору.
@@ -47,25 +64,32 @@ def main() -> None:
     candidate_k = max(candidate_k, top_k)
 
     answers = [FALLBACK] * len(questions)
-    with App.from_env() as app:
-        app.ingest(knowledge_base_path)
+    try:
+        with App.from_env() as app:
+            app.ingest(knowledge_base_path)
 
-        with ThreadPoolExecutor(max_workers=worker_count) as executor:
-            futures = [
-                executor.submit(
-                    _answer_one,
-                    app,
-                    position,
-                    question,
-                    candidate_k,
-                    top_k,
-                )
-                for position, (_, question) in enumerate(questions)
-            ]
+            with ThreadPoolExecutor(max_workers=worker_count) as executor:
+                futures = [
+                    executor.submit(
+                        _answer_one,
+                        app,
+                        position,
+                        question,
+                        candidate_k,
+                        top_k,
+                    )
+                    for position, (_, question) in enumerate(questions)
+                ]
 
-            for future in as_completed(futures):
-                position, answer = future.result()
-                answers[position] = answer
+                for future in as_completed(futures):
+                    position, answer = future.result()
+                    answers[position] = answer
+    except Exception as error:
+        # Пустой сабмит платформа не принимает, поэтому пишем CSV даже при сбое.
+        print(
+            f"[solution] база знаний не обработана: {type(error).__name__}: {error}",
+            file=sys.stderr,
+        )
 
     output_path = Path(os.getenv("OUTPUT_FILE", "submission.csv"))
     with output_path.open("w", encoding="utf-8", newline="") as file:
