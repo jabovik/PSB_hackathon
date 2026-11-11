@@ -10,7 +10,7 @@ class Document:
 @dataclass
 class Chunk:
     id : int
-    document_id : str
+    document_id : int
     text : str
     embedding: list[float] | None = None
     
