@@ -6,14 +6,14 @@ from pathlib import Path
 
 import httpx
 
-from app.schemas import Chunk
-from embeddings import EmbeddingClient
-from generation import generate_answer
-from generation.client import LLMClient
-from generation.config import GenConfig
-from ingestion.Ingester import Ingester
-from retrieval.Retriever import Retriever
-from retrieval.reranker import Reranker
+from schemas import Chunk
+from embedding_client import EmbeddingClient
+from generator import generate_answer
+from llm_client import LLMClient
+from generation_config import GenConfig
+from ingester import Ingester
+from retriever import Retriever
+from reranker import Reranker
 
 
 class App:

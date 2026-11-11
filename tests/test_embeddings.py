@@ -6,8 +6,8 @@ from unittest.mock import Mock
 # Keep imports working both in unittest discovery and when this file is run directly.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.schemas import Chunk
-from embeddings import EmbeddingClient
+from schemas import Chunk
+from embedding_client import EmbeddingClient
 
 
 class EmbeddingClientTests(unittest.TestCase):

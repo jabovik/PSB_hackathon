@@ -5,7 +5,7 @@ from collections.abc import Sequence
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from app.schemas import Chunk, Document
+from schemas import Chunk, Document
 
 DEFAULT_CHUNK_SIZE = 1800
 DEFAULT_CHUNK_OVERLAP = 150

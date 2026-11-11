@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from .client import LLMClient
-from .config import GenConfig
-from .postprocess import FALLBACK, clean_answer
-from .prompt import build_messages
+from llm_client import LLMClient
+from generation_config import GenConfig
+from postprocess import FALLBACK, clean_answer
+from prompt import build_messages
 
 _client: LLMClient | None = None
 

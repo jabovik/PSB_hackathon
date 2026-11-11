@@ -8,7 +8,7 @@
 - `requirements.txt` — зависимость `httpx==0.28.1`.
 - `README.md` — инструкция (можно не включать в финальный сабмит).
 
-Файлы платформы: `data/questions.csv` (`id,question`), `data/kb.zip`. Для совместимости стартер понимает также `knowledge-base.zip` / `knowledge_base.zip`. База может содержать TXT, MD и DOCX.
+Файлы платформы: `DATA_DIR/questions.csv` (`id,question`) и `DATA_DIR/knowledge-base.zip`. База может содержать TXT, MD и DOCX.
 
 ## Три вида запросов
 

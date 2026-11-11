@@ -1,7 +1,7 @@
 import re
 from rank_bm25 import BM25Okapi
 
-from app.schemas import Chunk, SearchResult
+from schemas import Chunk, SearchResult
 
 
 def tokenize(text: str) -> list[str]:

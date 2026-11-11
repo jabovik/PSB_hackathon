@@ -7,8 +7,8 @@ import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from app import App
-from generation.postprocess import FALLBACK
+from application import App
+from postprocess import FALLBACK
 
 
 def _load_questions(path: Path) -> list[tuple[str, str]]:
@@ -34,10 +34,21 @@ def _answer_one(
         return position, FALLBACK
 
 
+def _write_submission(
+    questions: list[tuple[str, str]],
+    answers: list[str],
+) -> None:
+    with Path("submission.csv").open("w", encoding="utf-8", newline="") as file:
+        writer = csv.writer(file, quoting=csv.QUOTE_ALL, lineterminator="\n")
+        writer.writerow(["id", "answer"])
+        for (question_id, _), answer in zip(questions, answers, strict=True):
+            writer.writerow([question_id, answer or FALLBACK])
+
+
 def main() -> None:
     data_dir = Path(os.getenv("DATA_DIR", "data"))
     questions = _load_questions(data_dir / "questions.csv")
-    knowledge_base_path = data_dir / "kb.zip"
+    knowledge_base_path = data_dir / "knowledge-base.zip"
 
     # TOP_K задаёт размер выборки перед реранжированием,
     # RERANKER_TOP_N — число чанков, передаваемых генератору.
@@ -47,32 +58,32 @@ def main() -> None:
     candidate_k = max(candidate_k, top_k)
 
     answers = [FALLBACK] * len(questions)
-    with App.from_env() as app:
-        app.ingest(knowledge_base_path)
+    _write_submission(questions, answers)
 
-        with ThreadPoolExecutor(max_workers=worker_count) as executor:
-            futures = [
-                executor.submit(
-                    _answer_one,
-                    app,
-                    position,
-                    question,
-                    candidate_k,
-                    top_k,
-                )
-                for position, (_, question) in enumerate(questions)
-            ]
+    try:
+        with App.from_env() as app:
+            app.ingest(knowledge_base_path)
 
-            for future in as_completed(futures):
-                position, answer = future.result()
-                answers[position] = answer
+            with ThreadPoolExecutor(max_workers=worker_count) as executor:
+                futures = [
+                    executor.submit(
+                        _answer_one,
+                        app,
+                        position,
+                        question,
+                        candidate_k,
+                        top_k,
+                    )
+                    for position, (_, question) in enumerate(questions)
+                ]
 
-    output_path = Path(os.getenv("OUTPUT_FILE", "submission.csv"))
-    with output_path.open("w", encoding="utf-8", newline="") as file:
-        writer = csv.writer(file, quoting=csv.QUOTE_ALL, lineterminator="\n")
-        writer.writerow(["id", "answer"])
-        for (question_id, _), answer in zip(questions, answers, strict=True):
-            writer.writerow([question_id, answer])
+                for future in as_completed(futures):
+                    position, answer = future.result()
+                    answers[position] = answer
+    except Exception:
+        pass
+
+    _write_submission(questions, answers)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
-from app.schemas import Chunk, SearchResult
-from retrieval.bm25 import BM25Search
-from retrieval.vector_search import VectorSearch
+from schemas import Chunk, SearchResult
+from bm25 import BM25Search
+from vector_search import VectorSearch
 
 
 class HybridSearch:
