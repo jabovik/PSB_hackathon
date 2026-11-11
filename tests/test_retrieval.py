@@ -7,13 +7,13 @@ from unittest.mock import Mock
 # Keep imports working both in unittest discovery and when this file is run directly.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.schemas import Chunk, SearchResult
-from embeddings import EmbeddingClient
-from retrieval.Retriever import Retriever
-from retrieval.bm25 import BM25Search
-from retrieval.hybrid_search import HybridSearch
-from retrieval.reranker import Reranker
-from retrieval.vector_search import VectorSearch
+from schemas import Chunk, SearchResult
+from embedding_client import EmbeddingClient
+from retriever import Retriever
+from bm25 import BM25Search
+from hybrid_search import HybridSearch
+from reranker import Reranker
+from vector_search import VectorSearch
 
 
 class BM25SearchTests(unittest.TestCase):

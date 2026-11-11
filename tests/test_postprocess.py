@@ -5,7 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import unittest
 
-from generation.postprocess import FALLBACK, clean_answer
+from gen_postprocess import FALLBACK, clean_answer
 
 
 class CleanAnswerTests(unittest.TestCase):

@@ -2,7 +2,7 @@ import os
 
 import httpx
 
-from app.schemas import SearchResult
+from schemas import SearchResult
 
 
 class Reranker:
