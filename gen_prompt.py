@@ -20,7 +20,7 @@ SYSTEM = """Ты — корпоративный юридический асси�
 — отказ: «В предоставленной базе знаний нет сведений о … — нужны …»."""
 
 
-def build_messages(question: str, contexts: list[str], max_ctx: int = 8) -> list[dict]:
+def build_messages(question: str, contexts: list[str], max_ctx: int = 12) -> list[dict]:
     parts = []
     for i, c in enumerate(contexts[:max_ctx], 1):
         parts.append(f"[{i}] {c.strip()}")

@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import io
 import os
+import sys
 import zipfile
 from pathlib import Path
 from xml.etree import ElementTree
 
 from schemas import Document
+
+SUPPORTED_SUFFIXES = {".txt", ".md", ".docx", ".pdf"}
 
 
 def _read_docx(content: bytes) -> str:
@@ -49,25 +52,42 @@ def find_archive(source: str | Path) -> Path:
     )
 
 
+def _read_pdf(content: bytes) -> str:
+    """Извлекает текст из PDF: база знаний может прийти не только в TXT/DOCX."""
+    from pypdf import PdfReader
+
+    reader = PdfReader(io.BytesIO(content))
+    return "\n".join(page.extract_text() or "" for page in reader.pages)
+
+
+def _read_document(filename: str, content: bytes) -> str:
+    suffix = Path(filename).suffix.lower()
+    if suffix == ".docx":
+        return _read_docx(content)
+    if suffix == ".pdf":
+        return _read_pdf(content)
+    return content.decode("utf-8-sig")
+
+
 def read_archive(source: str | Path) -> list[Document]:
     archive_path = find_archive(source)
     documents: list[Document] = []
 
     with zipfile.ZipFile(archive_path, "r") as archive:
-        filenames = sorted(
-            name for name in archive.namelist()
-            if not name.endswith("/")
-            and Path(name).suffix.lower() in {".txt", ".md", ".docx"}
-        )
+        filenames = sorted(name for name in archive.namelist() if not name.endswith("/"))
 
         for filename in filenames:
-            content = archive.read(filename)
-            suffix = Path(filename).suffix.lower()
-            text = (
-                _read_docx(content)
-                if suffix == ".docx"
-                else content.decode("utf-8-sig")
-            ).strip()
+            if Path(filename).suffix.lower() not in SUPPORTED_SUFFIXES:
+                continue
+            try:
+                text = _read_document(filename, archive.read(filename)).strip()
+            except Exception as error:
+                print(
+                    f"[archive] пропущен {filename}: {type(error).__name__}: {error}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                continue
             if text:
                 documents.append(
                     Document(
@@ -77,9 +97,21 @@ def read_archive(source: str | Path) -> list[Document]:
                     )
                 )
 
+        if not documents:
+            # Последний шанс: вдруг документы лежат с неожиданным расширением.
+            for filename in filenames:
+                try:
+                    text = archive.read(filename).decode("utf-8", errors="ignore").strip()
+                except Exception:
+                    continue
+                if len(text) > 100:
+                    documents.append(
+                        Document(id=len(documents) + 1, filename=filename, text=text)
+                    )
+
     if not documents:
         raise ValueError(
-            f"В архиве {archive_path} не найдено документов TXT, MD или DOCX"
+            f"В архиве {archive_path} не найдено читаемых документов"
         )
 
     return documents

@@ -10,14 +10,20 @@ from gen_config import GenConfig
 
 
 class LLMClient:
+    #: После стольких подряд неудач не ждём таймауты на каждом вопросе.
+    MAX_CONSECUTIVE_FAILURES = 5
+
     def __init__(self, cfg: GenConfig) -> None:
         self._cfg = cfg
         self._http = httpx.Client(timeout=cfg.timeout)
+        self._failures = 0
 
     def close(self) -> None:
         self._http.close()
 
     def chat(self, messages: list[dict]) -> str | None:
+        if self._failures >= self.MAX_CONSECUTIVE_FAILURES:
+            return None
         if not self._cfg.base_url or not self._cfg.api_key:
             print("[gen] не заданы LLM_BASE_URL или LLM_API_KEY", file=sys.stderr)
             return None
@@ -41,9 +47,11 @@ class LLMClient:
                         "retryable", request=response.request, response=response
                     )
                 response.raise_for_status()
+                self._failures = 0
                 return response.json()["choices"][0]["message"]["content"]
             except Exception as exc:
                 if attempt == 2:
+                    self._failures += 1
                     print(f"[gen] chat failed: {type(exc).__name__}: {exc}", file=sys.stderr)
                     return None
                 time.sleep(delay + random.random() * 0.5)

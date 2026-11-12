@@ -18,6 +18,10 @@ from reranker import Reranker
 #: Если модель отказалась, пробуем ещё раз с более широким контекстом.
 EXPANDED_TOP_K = 12
 EXPANDED_CANDIDATE_K = 24
+#: Сколько чанков максимум уходит в генератор и у скольких верхних
+#: результатов добавляем соседей по документу.
+MAX_CONTEXTS = 12
+NEIGHBOR_SEED_COUNT = 2
 _REFUSAL_MARKERS = ("В предоставленной базе знаний", "вне компетенции ассистента")
 
 
@@ -74,6 +78,39 @@ class App:
         )
         return chunks
 
+    def _expand_with_neighbors(self, chunks: list[Chunk]) -> list[Chunk]:
+        """Добавляет соседние чанки того же документа для верхних результатов.
+
+        Режет документы по пунктам, поэтому факт может оказаться на границе
+        двух чанков. Соседи закрывают такие обрывы, не меняя индекс.
+        """
+        if self._retriever is None or len(chunks) >= MAX_CONTEXTS:
+            return chunks
+
+        by_id = {chunk.id: chunk for chunk in self._retriever.chunks}
+        expanded: list[Chunk] = []
+        seen: set[int] = set()
+
+        for position, chunk in enumerate(chunks):
+            candidates = [chunk]
+            if position < NEIGHBOR_SEED_COUNT:
+                previous = by_id.get(chunk.id - 1)
+                following = by_id.get(chunk.id + 1)
+                if previous is not None and previous.document_id == chunk.document_id:
+                    candidates.insert(0, previous)
+                if following is not None and following.document_id == chunk.document_id:
+                    candidates.append(following)
+
+            for candidate in candidates:
+                if candidate.id in seen:
+                    continue
+                seen.add(candidate.id)
+                expanded.append(candidate)
+                if len(expanded) >= MAX_CONTEXTS:
+                    return expanded
+
+        return expanded
+
     def ask(
         self,
         question: str,
@@ -92,7 +129,7 @@ class App:
         )
         answer = generate_answer(
             question,
-            [chunk.text for chunk in chunks],
+            [chunk.text for chunk in self._expand_with_neighbors(chunks)],
             client=self.llm_client,
         )
 
@@ -105,7 +142,7 @@ class App:
             if len(expanded) > len(chunks):
                 answer = generate_answer(
                     question,
-                    [chunk.text for chunk in expanded],
+                    [chunk.text for chunk in self._expand_with_neighbors(expanded)],
                     client=self.llm_client,
                 )
 

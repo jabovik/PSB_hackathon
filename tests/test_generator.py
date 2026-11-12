@@ -42,15 +42,15 @@ class GenerateAnswerTests(unittest.TestCase):
         self.assertIn("первый фрагмент", user["content"])
         self.assertIn("второй фрагмент", user["content"])
 
-    def test_limits_contexts_to_eight(self):
+    def test_limits_contexts_to_twelve(self):
         client = FakeClient("ок")
-        contexts = [f"фрагмент {i}" for i in range(1, 11)]
+        contexts = [f"фрагмент {i}" for i in range(1, 15)]
 
         generate_answer("вопрос", contexts, client=client)
 
         user = client.calls[0][1]["content"]
-        self.assertIn("[8] фрагмент 8", user)
-        self.assertNotIn("фрагмент 9", user)
+        self.assertIn("[12] фрагмент 12", user)
+        self.assertNotIn("фрагмент 13", user)
 
     def test_does_not_call_model_without_contexts(self):
         client = FakeClient("ок")

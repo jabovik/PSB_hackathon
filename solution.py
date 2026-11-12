@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import csv
 import os
-import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -73,16 +72,21 @@ def main() -> None:
     )
 
     answers = [FALLBACK] * len(questions)
+    started_at = time.monotonic()
     try:
         knowledge_base_path = _find_knowledge_base(data_dir)
         print(
             f"[solution] questions={len(questions)} kb={knowledge_base_path.name}",
-            file=sys.stderr,
             flush=True,
         )
         with App.from_env() as app:
+            ingest_started = time.monotonic()
             chunks = app.ingest(knowledge_base_path)
-            print(f"[solution] ingested chunks={len(chunks)}", file=sys.stderr, flush=True)
+            print(
+                f"[solution] ingested chunks={len(chunks)} "
+                f"in {time.monotonic() - ingest_started:.1f}s",
+                flush=True,
+            )
 
             with ThreadPoolExecutor(max_workers=worker_count) as executor:
                 futures = [
@@ -105,12 +109,20 @@ def main() -> None:
         # Пустой сабмит платформа не принимает, поэтому пишем CSV даже при сбое.
         print(
             f"[solution] база знаний не обработана: {type(error).__name__}: {error}",
-            file=sys.stderr,
             flush=True,
         )
 
     answered = sum(1 for answer in answers if answer != FALLBACK)
-    print(f"[solution] answered={answered}/{len(answers)}", file=sys.stderr, flush=True)
+    refused = sum(
+        1
+        for answer in answers
+        if "В предоставленной базе знаний" in answer or "вне компетенции" in answer
+    )
+    print(
+        f"[solution] answered={answered}/{len(answers)} refused={refused} "
+        f"in {time.monotonic() - started_at:.1f}s",
+        flush=True,
+    )
 
     output_path = Path(os.getenv("OUTPUT_FILE", "submission.csv"))
     with output_path.open("w", encoding="utf-8", newline="") as file:
