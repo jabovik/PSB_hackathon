@@ -1,9 +1,9 @@
 import httpx
 
-from app.schemas import Chunk
-from embeddings import EmbeddingClient
-from retrieval.hybrid_search import HybridSearch
-from retrieval.reranker import Reranker
+from schemas import Chunk
+from embedding_client import EmbeddingClient
+from hybrid_search import HybridSearch
+from reranker import Reranker
 
 class Retriever:
     """Create query embeddings, retrieve candidates, then optionally rerank them."""

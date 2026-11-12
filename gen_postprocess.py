@@ -12,6 +12,9 @@ import re
 #: Что отдаём, если модель не ответила или ответ оказался пустым.
 FALLBACK = "Не удалось получить ответ."
 
+#: Лимит платформы на один ответ в submission.csv.
+MAX_ANSWER_CHARS = 10_000
+
 _FENCE_RE = re.compile(r"```[A-Za-z0-9_+-]*")
 #: Markdown-разметка внутри ответа: жирный текст и инлайн-код.
 _MARKUP_RE = re.compile(r"\*\*|`")
@@ -64,4 +67,43 @@ def clean_answer(raw: str | None, fallback: str = FALLBACK) -> str:
     text = _strip_wrapping(text)
     text = text.strip()
 
+    if len(text) > MAX_ANSWER_CHARS:
+        text = text[:MAX_ANSWER_CHARS].rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
+
     return text or fallback
+
+
+#: Ссылка на пункт/статью/часть: «п. 4.2», «ст. 70», «ч. 2».
+_REF_RE = re.compile(r"(?:п\.|пункт|ст\.|статья|ч\.|часть)\s*(\d+(?:\.\d+)*)", re.IGNORECASE)
+_PAREN_RE = re.compile(r"\(([^()]*)\)")
+_SOURCE_RE = re.compile(r"Источник:.*$", re.IGNORECASE)
+
+
+def _has_number(number: str, text: str) -> bool:
+    return re.search(rf"(?<![\d.]){re.escape(number)}(?![\d])", text) is not None
+
+
+def verify_citations(answer: str, contexts: list[str]) -> str:
+    """Убирает ссылки на пункты, которых нет в переданном контексте.
+
+    Модель иногда переносит номер пункта из соседнего документа. Для судьи
+    ссылка на несуществующее положение — выдуманный факт, поэтому такие
+    ссылки вырезаем, а не оставляем на удачу.
+    """
+    if not contexts:
+        return answer
+
+    text = " ".join(contexts)
+
+    def keep(match: re.Match[str]) -> str:
+        numbers = _REF_RE.findall(match.group(0))
+        if numbers and not all(_has_number(number, text) for number in numbers):
+            return ""
+        return match.group(0)
+
+    result = _PAREN_RE.sub(keep, answer)
+    result = _SOURCE_RE.sub(keep, result)
+    result = re.sub(r"\s+([,.;:])", r"\1", result)
+    result = " ".join(result.split()).strip()
+
+    return result or FALLBACK

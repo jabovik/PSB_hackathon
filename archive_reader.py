@@ -6,7 +6,7 @@ import zipfile
 from pathlib import Path
 from xml.etree import ElementTree
 
-from app.schemas import Document
+from schemas import Document
 
 
 def _read_docx(content: bytes) -> str:

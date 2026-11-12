@@ -5,8 +5,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import unittest
 
-from generation import generate_answer
-from generation.postprocess import FALLBACK
+from generator import generate_answer
+from gen_postprocess import FALLBACK
 
 
 class FakeClient:
@@ -65,6 +65,14 @@ class GenerateAnswerTests(unittest.TestCase):
 
     def test_falls_back_when_model_returns_blank(self):
         self.assertEqual(FALLBACK, generate_answer("вопрос", ["контекст"], client=FakeClient("   ")))
+
+    def test_drops_citation_that_is_not_in_context(self):
+        client = FakeClient("Арендная плата — 450 000 рублей (п. 9.9, договор аренды).")
+
+        answer = generate_answer("Какая арендная плата?", ["3.1. Арендная плата — 450 000 рублей."], client=client)
+
+        self.assertNotIn("9.9", answer)
+        self.assertIn("450 000", answer)
 
 
 if __name__ == "__main__":

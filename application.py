@@ -6,14 +6,23 @@ from pathlib import Path
 
 import httpx
 
-from app.schemas import Chunk
-from embeddings import EmbeddingClient
-from generation import generate_answer
-from generation.client import LLMClient
-from generation.config import GenConfig
-from ingestion.Ingester import Ingester
-from retrieval.Retriever import Retriever
-from retrieval.reranker import Reranker
+from schemas import Chunk
+from embedding_client import EmbeddingClient
+from generator import generate_answer
+from llm_client import LLMClient
+from gen_config import GenConfig
+from ingester import Ingester
+from retriever import Retriever
+from reranker import Reranker
+
+#: Если модель отказалась, пробуем ещё раз с более широким контекстом.
+EXPANDED_TOP_K = 12
+EXPANDED_CANDIDATE_K = 24
+_REFUSAL_MARKERS = ("В предоставленной базе знаний", "вне компетенции ассистента")
+
+
+def _is_refusal(answer: str) -> bool:
+    return any(marker in answer for marker in _REFUSAL_MARKERS)
 
 
 class App:
@@ -81,11 +90,26 @@ class App:
             top_k=top_k,
             candidate_k=candidate_k,
         )
-        return generate_answer(
+        answer = generate_answer(
             question,
             [chunk.text for chunk in chunks],
             client=self.llm_client,
         )
+
+        if _is_refusal(answer) and top_k < EXPANDED_TOP_K:
+            expanded = self._retriever.retrieve(
+                question,
+                top_k=EXPANDED_TOP_K,
+                candidate_k=max(candidate_k, EXPANDED_CANDIDATE_K),
+            )
+            if len(expanded) > len(chunks):
+                answer = generate_answer(
+                    question,
+                    [chunk.text for chunk in expanded],
+                    client=self.llm_client,
+                )
+
+        return answer
 
     def close(self) -> None:
         self.llm_client.close()

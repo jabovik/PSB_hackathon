@@ -5,7 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import unittest
 
-from generation.postprocess import FALLBACK, clean_answer
+from gen_postprocess import FALLBACK, clean_answer, verify_citations
 
 
 class CleanAnswerTests(unittest.TestCase):
@@ -42,6 +42,43 @@ class CleanAnswerTests(unittest.TestCase):
 
     def test_returns_fallback_when_only_prefix_left(self):
         self.assertEqual(FALLBACK, clean_answer("Ответ:"))
+
+    def test_caps_answer_at_platform_limit(self):
+        self.assertLessEqual(len(clean_answer("слово " * 5000)), 10_000)
+
+
+class VerifyCitationsTests(unittest.TestCase):
+    def setUp(self):
+        self.contexts = [
+            "Документ: договор аренды.txt\n\n3.1. Арендная плата — 450 000 рублей.",
+            "Документ: регламент.txt\n\n2.4. Договоры свыше 10 000 000 рублей согласуются с директором.",
+        ]
+
+    def test_keeps_citation_present_in_context(self):
+        answer = "Арендная плата — 450 000 рублей (п. 3.1, договор аренды)."
+
+        self.assertEqual(answer, verify_citations(answer, self.contexts))
+
+    def test_drops_citation_absent_from_context(self):
+        answer = "Арендная плата — 450 000 рублей (п. 9.9, договор аренды)."
+
+        self.assertEqual(
+            "Арендная плата — 450 000 рублей.",
+            verify_citations(answer, self.contexts),
+        )
+
+    def test_keeps_parentheses_without_references(self):
+        answer = "Арендная плата — 450 000 рублей (без НДС)."
+
+        self.assertEqual(answer, verify_citations(answer, self.contexts))
+
+    def test_drops_source_tail_with_absent_reference(self):
+        answer = "Арендная плата — 450 000 рублей. Источник: договор, п. 9.9."
+
+        self.assertNotIn("9.9", verify_citations(answer, self.contexts))
+
+    def test_returns_fallback_when_only_citation_left(self):
+        self.assertEqual(FALLBACK, verify_citations("(п. 9.9)", self.contexts))
 
 
 if __name__ == "__main__":
