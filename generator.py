@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from llm_client import LLMClient
 from gen_config import GenConfig
-from gen_postprocess import FALLBACK, clean_answer
+from gen_postprocess import FALLBACK, clean_answer, verify_citations
 from gen_prompt import build_messages
 
 _client: LLMClient | None = None
@@ -35,4 +35,4 @@ def generate_answer(
 
     messages = build_messages(question, contexts)
     raw = (client or _default_client()).chat(messages)
-    return clean_answer(raw)
+    return verify_citations(clean_answer(raw), contexts)

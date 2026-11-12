@@ -15,6 +15,15 @@ from ingester import Ingester
 from retriever import Retriever
 from reranker import Reranker
 
+#: Если модель отказалась, пробуем ещё раз с более широким контекстом.
+EXPANDED_TOP_K = 12
+EXPANDED_CANDIDATE_K = 24
+_REFUSAL_MARKERS = ("В предоставленной базе знаний", "вне компетенции ассистента")
+
+
+def _is_refusal(answer: str) -> bool:
+    return any(marker in answer for marker in _REFUSAL_MARKERS)
+
 
 class App:
     """Load a knowledge base, answer questions, and own the API clients."""
@@ -81,11 +90,26 @@ class App:
             top_k=top_k,
             candidate_k=candidate_k,
         )
-        return generate_answer(
+        answer = generate_answer(
             question,
             [chunk.text for chunk in chunks],
             client=self.llm_client,
         )
+
+        if _is_refusal(answer) and top_k < EXPANDED_TOP_K:
+            expanded = self._retriever.retrieve(
+                question,
+                top_k=EXPANDED_TOP_K,
+                candidate_k=max(candidate_k, EXPANDED_CANDIDATE_K),
+            )
+            if len(expanded) > len(chunks):
+                answer = generate_answer(
+                    question,
+                    [chunk.text for chunk in expanded],
+                    client=self.llm_client,
+                )
+
+        return answer
 
     def close(self) -> None:
         self.llm_client.close()

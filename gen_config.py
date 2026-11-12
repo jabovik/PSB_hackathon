@@ -27,7 +27,7 @@ class GenConfig:
             base_url=_env("LLM_BASE_URL", "BASE_URL", "OPENAI_BASE_URL").rstrip("/"),
             api_key=_env("LLM_API_KEY", "OPENAI_API_KEY"),
             model=_env("LLM_MODEL", "GEN_MODEL", "OPENAI_MODEL"),
-            temperature=float(_env("TEMPERATURE", default="0.2")),
+            temperature=float(_env("TEMPERATURE", default="0.0")),
             max_tokens=int(_env("MAX_TOKENS", default="512")),
             timeout=float(_env("LLM_TIMEOUT", default="60")),
         )

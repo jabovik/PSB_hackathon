@@ -62,10 +62,10 @@ def main() -> None:
     data_dir = Path(os.getenv("DATA_DIR", "data"))
     questions = _load_questions(data_dir / "questions.csv")
 
-    # TOP_K задаёт размер выборки перед реранжированием,
-    # RERANKER_TOP_N — число чанков, передаваемых генератору.
-    candidate_k = int(os.getenv("TOP_K", "4"))
-    top_k = int(os.getenv("RERANKER_TOP_N", "2"))
+    # Глубину поиска берём не меньше разумного минимума: на 2 фрагментах
+    # модель слишком часто отказывается, хотя ответ в базе есть.
+    candidate_k = max(int(os.getenv("TOP_K", "4")), 12)
+    top_k = max(int(os.getenv("RERANKER_TOP_N", "2")), 8)
     worker_count = int(os.getenv("MAX_WORKERS", "2"))
     candidate_k = max(candidate_k, top_k)
     deadline = time.monotonic() + float(

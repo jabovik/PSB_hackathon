@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 from schemas import Chunk
@@ -45,6 +46,15 @@ class Ingester:
             # Bound request size while avoiding a separate API call for every chunk.
             for start in range(0, len(chunks), self.embedding_batch_size):
                 batch = chunks[start : start + self.embedding_batch_size]
-                self.embedding_client.embed_chunks(batch)
+                try:
+                    self.embedding_client.embed_chunks(batch)
+                except Exception as error:
+                    # Без эмбеддингов остаётся BM25: лучше ответить, чем упасть целиком.
+                    print(
+                        f"[ingester] не удалось получить эмбеддинги для чанков "
+                        f"{start}..{start + len(batch)}: {type(error).__name__}: {error}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
 
         return chunks
