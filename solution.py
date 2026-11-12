@@ -64,7 +64,7 @@ def main() -> None:
 
     # Глубину поиска берём не меньше разумного минимума: на 2 фрагментах
     # модель слишком часто отказывается, хотя ответ в базе есть.
-    candidate_k = max(int(os.getenv("TOP_K", "4")), 12)
+    candidate_k = max(int(os.getenv("TOP_K", "4")), 24)
     top_k = max(int(os.getenv("RERANKER_TOP_N", "2")), 8)
     worker_count = int(os.getenv("MAX_WORKERS", "2"))
     candidate_k = max(candidate_k, top_k)

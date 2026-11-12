@@ -43,6 +43,9 @@ class CleanAnswerTests(unittest.TestCase):
     def test_returns_fallback_when_only_prefix_left(self):
         self.assertEqual(FALLBACK, clean_answer("Ответ:"))
 
+    def test_caps_answer_at_platform_limit(self):
+        self.assertLessEqual(len(clean_answer("слово " * 5000)), 10_000)
+
 
 class VerifyCitationsTests(unittest.TestCase):
     def setUp(self):

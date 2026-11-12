@@ -12,6 +12,9 @@ import re
 #: Что отдаём, если модель не ответила или ответ оказался пустым.
 FALLBACK = "Не удалось получить ответ."
 
+#: Лимит платформы на один ответ в submission.csv.
+MAX_ANSWER_CHARS = 10_000
+
 _FENCE_RE = re.compile(r"```[A-Za-z0-9_+-]*")
 #: Markdown-разметка внутри ответа: жирный текст и инлайн-код.
 _MARKUP_RE = re.compile(r"\*\*|`")
@@ -63,6 +66,9 @@ def clean_answer(raw: str | None, fallback: str = FALLBACK) -> str:
     text = " ".join(text.split())
     text = _strip_wrapping(text)
     text = text.strip()
+
+    if len(text) > MAX_ANSWER_CHARS:
+        text = text[:MAX_ANSWER_CHARS].rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
 
     return text or fallback
 
