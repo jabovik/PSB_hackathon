@@ -1,0 +1,9 @@
+{
+  "query": "Что такое RAG?",
+  "documents": [
+    "RAG combines information retrieval with language model generation.",
+    "A raster image is represented as a rectangular grid of pixels."
+  ],
+  "top_n": 2,
+  "return_documents": true
+}

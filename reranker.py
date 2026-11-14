@@ -4,6 +4,9 @@ import httpx
 
 from schemas import SearchResult
 
+#: Длинные документы режем: прокси может не принять запрос на десятки тысяч символов.
+MAX_DOCUMENT_CHARS = 1000
+
 
 class Reranker:
     """Rerank an existing candidate list through an OpenAI-compatible /rerank API."""
@@ -54,7 +57,9 @@ class Reranker:
             json={
                 "model": self.model,
                 "query": question,
-                "documents": [result.chunk.text for result in candidates],
+                "documents": [
+                    result.chunk.text[:MAX_DOCUMENT_CHARS] for result in candidates
+                ],
                 "top_n": min(top_k, len(candidates)),
             },
         )

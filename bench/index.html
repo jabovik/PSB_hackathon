@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PSB — тестовый стенд</title>
+<style>
+  :root { color-scheme: light; --line: #d6d9e0; --muted: #5b6170; --accent: #1f5eff; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: #1a1d24; background: #f6f7f9; }
+  h1 { margin: 0 0 4px; font-size: 20px; }
+  h2 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .hint { margin: 0 0 18px; color: var(--muted); }
+  .panel, .summary { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .row { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin-bottom: 14px; }
+  label { display: flex; gap: 6px; align-items: center; color: var(--muted); }
+  input[type=number] { width: 70px; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; }
+  button { padding: 8px 14px; border: 0; border-radius: 7px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  button.secondary { background: #e8ebf2; color: #1a1d24; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  textarea { width: 100%; min-height: 240px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; font: 12px/1.4 ui-monospace, Consolas, monospace; resize: vertical; }
+  .status { margin: 10px 0 0; color: var(--muted); min-height: 20px; }
+  .status.error { color: #b42318; }
+  .summary { display: flex; gap: 26px; flex-wrap: wrap; }
+  .summary div { min-width: 120px; }
+  .summary b { display: block; font-size: 22px; }
+  .summary span { color: var(--muted); font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  th, td { padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; text-align: left; }
+  th { background: #eef1f6; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  tr:last-child td { border-bottom: 0; }
+  td.answer { max-width: 720px; }
+  .tag { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; }
+  .tag.refused { background: #fde8e7; color: #b42318; }
+  .tag.ok { background: #e7f6ec; color: #12703a; }
+  .score { font-weight: 700; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+  .hidden { display: none; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+  <h1>Юридический ассистент — локальный стенд</h1>
+  <p class="hint">Гоняет вопросы через реальный <code>App.ask</code> на локальной базе <code>data/</code>. Локально доступны BM25 + DeepSeek; эмбеддинги и реранкер работают только на платформе.</p>
+
+  <section class="panel">
+    <div class="row">
+      <label>top_k <input id="top_k" type="number" value="8" min="1" max="20"></label>
+      <label>candidate_k <input id="candidate_k" type="number" value="12" min="1" max="40"></label>
+      <label><input id="judge" type="checkbox"> LLM-судья по эталону</label>
+      <button id="run">Запустить</button>
+      <button id="download" class="secondary" disabled>Скачать submission.csv</button>
+    </div>
+    <div class="grid">
+      <div>
+        <h2>Вопросы — CSV id,question</h2>
+        <textarea id="questions" spellcheck="false" placeholder="id,question"></textarea>
+      </div>
+      <div>
+        <h2>Эталон — CSV id,answer (для судьи)</h2>
+        <textarea id="golden" spellcheck="false" placeholder="id,answer"></textarea>
+      </div>
+    </div>
+    <p id="status" class="status"></p>
+  </section>
+
+  <section id="summary" class="summary hidden"></section>
+  <section id="results"></section>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let submission = "";
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+}
+
+async function loadDemo() {
+  try {
+    const response = await fetch("/api/demo");
+    const data = await response.json();
+    if (data.questions) $("questions").value = data.questions;
+    if (data.golden) $("golden").value = data.golden;
+  } catch (error) {
+    setStatus("Не смог загрузить демо-файлы: " + error, true);
+  }
+}
+
+function setStatus(text, isError = false) {
+  $("status").textContent = text;
+  $("status").className = "status" + (isError ? " error" : "");
+}
+
+function renderSummary(summary) {
+  const box = $("summary");
+  box.classList.remove("hidden");
+  const score = summary.mean_score === null ? "—" : summary.mean_score;
+  box.innerHTML = [
+    ["Вопросов", summary.questions],
+    ["Отказов", summary.refusals],
+    ["Средний балл судьи", score],
+    ["Время, с", summary.total_seconds],
+  ].map(([label, value]) => `<div><b>${escapeHtml(value)}</b><span>${escapeHtml(label)}</span></div>`).join("");
+}
+
+function renderResults(results) {
+  const rows = results.map((row) => {
+    const docs = row.docs.map((doc) => `<div>${escapeHtml(doc.preview)}… <span class="hint">(${doc.chars} симв.)</span></div>`).join("");
+    const score = row.score === null ? "—" : `<span class="score">${row.score.toFixed(2)}</span><div class="hint">${escapeHtml(row.reason)}</div>`;
+    return `<tr>
+      <td>${escapeHtml(row.id)}</td>
+      <td class="answer">${escapeHtml(row.answer)}</td>
+      <td>${row.seconds.toFixed(1)}</td>
+      <td>${row.refused ? '<span class="tag refused">отказ</span>' : '<span class="tag ok">ответ</span>'}</td>
+      <td>${score}</td>
+      <td><details><summary>топ-3</summary>${docs || "<div class=\"hint\">нет фрагментов</div>"}</details></td>
+    </tr>`;
+  }).join("");
+  $("results").innerHTML = `<table>
+    <thead><tr><th>ID</th><th>Ответ</th><th>с</th><th>Тип</th><th>Судья</th><th>Документы</th></tr></thead>
+    <tbody>${rows}</tbody></table>`;
+}
+
+$("run").addEventListener("click", async () => {
+  const questions = $("questions").value.trim();
+  if (!questions) { setStatus("Вставьте вопросы в CSV", true); return; }
+  $("run").disabled = true;
+  $("download").disabled = true;
+  setStatus("Идёт прогон: поиск → генерация" + ($("judge").checked ? " → судья" : "") + "…");
+  try {
+    const response = await fetch("/api/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        questions_text: questions,
+        golden_text: $("golden").value,
+        top_k: Number($("top_k").value),
+        candidate_k: Number($("candidate_k").value),
+        judge: $("judge").checked,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok || data.error) throw new Error(data.error || response.statusText);
+    submission = data.submission;
+    renderSummary(data.summary);
+    renderResults(data.results);
+    $("download").disabled = false;
+    setStatus("Готово");
+  } catch (error) {
+    setStatus("Ошибка: " + error.message, true);
+  } finally {
+    $("run").disabled = false;
+  }
+});
+
+$("download").addEventListener("click", () => {
+  const blob = new Blob([submission], { type: "text/csv;charset=utf-8" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "submission.csv";
+  link.click();
+  URL.revokeObjectURL(link.href);
+});
+
+loadDemo();
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+{
+  "messages": [
+    {"role": "system", "content": "Ты полезный ассистент."},
+    {"role": "user", "content": "Ответь одним предложением: что такое RAG?"}
+  ],
+  "temperature": 0.2,
+  "max_tokens": 256
+}

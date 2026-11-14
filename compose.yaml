@@ -1,0 +1,16 @@
+services:
+  bench:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: psb-bench:latest
+    environment:
+      UPSTREAM_BASE_URL: ${LLM_BASE_URL:-https://api.deepseek.com}
+      UPSTREAM_API_KEY: ${LLM_API_KEY:?LLM_API_KEY is required in .env}
+      LLM_MODEL: ${LLM_MODEL:-deepseek-chat}
+      TOP_K: ${TOP_K:-4}
+      RERANKER_TOP_N: ${RERANKER_TOP_N:-2}
+      MAX_WORKERS: ${MAX_WORKERS:-2}
+    volumes:
+      - ./data:/data:ro
+      - ./out:/out

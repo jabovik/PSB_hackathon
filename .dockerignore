@@ -1,0 +1,14 @@
+.venv
+.git
+__pycache__
+*.pyc
+data
+out
+tests
+bench
+docs
+*.zip
+.env
+.env.*
+play.py
+solution.zip

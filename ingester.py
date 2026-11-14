@@ -15,7 +15,7 @@ from document_chunker import (
     chunk_documents,
 )
 
-DEFAULT_EMBEDDING_BATCH_SIZE = 16
+DEFAULT_EMBEDDING_BATCH_SIZE = 8
 #: Сколько секунд максимум тратим на эмбеддинги, чтобы не съесть лимит платформы.
 DEFAULT_EMBEDDING_BUDGET_SECONDS = 300.0
 
@@ -68,14 +68,23 @@ class Ingester:
                 try:
                     self.embedding_client.embed_chunks(batch)
                 except Exception as error:
-                    # Без эмбеддингов остаётся BM25: лучше ответить, чем упасть целиком.
+                    # Возможно, прокси не принимает большой батч — пробуем по одному.
                     print(
-                        f"[ingester] не удалось получить эмбеддинги для чанков "
-                        f"{start}..{start + len(batch)}: {type(error).__name__}: {error}; "
-                        f"оставшиеся чанки пойдут только в BM25",
+                        f"[ingester] батч чанков {start}..{start + len(batch)} не прошёл "
+                        f"({type(error).__name__}: {error}), пробуем по одному",
                         file=sys.stderr,
                         flush=True,
                     )
-                    break
+                    for chunk in batch:
+                        try:
+                            self.embedding_client.embed_chunks([chunk])
+                        except Exception as inner:
+                            print(
+                                f"[ingester] эмбеддинги недоступны "
+                                f"({type(inner).__name__}: {inner}); дальше только BM25",
+                                file=sys.stderr,
+                                flush=True,
+                            )
+                            return chunks
 
         return chunks
