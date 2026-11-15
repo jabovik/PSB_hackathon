@@ -66,6 +66,7 @@ def clean_answer(raw: str | None, fallback: str = FALLBACK) -> str:
     text = " ".join(text.split())
     text = _strip_wrapping(text)
     text = text.strip()
+    text = _shorten_no_information_answer(text)
 
     if len(text) > MAX_ANSWER_CHARS:
         text = text[:MAX_ANSWER_CHARS].rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
@@ -77,6 +78,23 @@ def clean_answer(raw: str | None, fallback: str = FALLBACK) -> str:
 _REF_RE = re.compile(r"(?:п\.|пункт|ст\.|статья|ч\.|часть)\s*(\d+(?:\.\d+)*)", re.IGNORECASE)
 _PAREN_RE = re.compile(r"\(([^()]*)\)")
 _SOURCE_RE = re.compile(r"Источник:.*$", re.IGNORECASE)
+_NO_INFORMATION_RE = re.compile(
+    r"^(?:в предоставленных документах|в предоставленной базе знаний|в базе знаний)\s+"
+    r"(?:нет сведений|нет информации|нет документов)\s+о\s+"
+    r"(?P<topic>.+?)(?:\s+[—–]\s+|[,;.]|$)",
+    re.IGNORECASE,
+)
+
+
+def _shorten_no_information_answer(text: str) -> str:
+    """Keep only the missing subject when the answer is a full refusal."""
+    match = _NO_INFORMATION_RE.match(text)
+    if not match:
+        return text
+    topic = match.group("topic").strip().rstrip(" .,:;—–")
+    if not topic:
+        return text
+    return f"В предоставленных документах нет сведений о {topic}."
 
 
 def _has_number(number: str, text: str) -> bool:
