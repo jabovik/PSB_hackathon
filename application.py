@@ -92,7 +92,7 @@ class App:
         )
         answer = generate_answer(
             question,
-            [chunk.text for chunk in chunks],
+            chunks,
             client=self.llm_client,
         )
 
@@ -105,7 +105,7 @@ class App:
             if len(expanded) > len(chunks):
                 answer = generate_answer(
                     question,
-                    [chunk.text for chunk in expanded],
+                    expanded,
                     client=self.llm_client,
                 )
 

@@ -63,6 +63,17 @@ def _extract_metadata(filename: str) -> dict[str, MetadataValue]:
 
     return metadata
 
+
+def _canonical_document_number(number: str) -> str:
+    match = re.fullmatch(
+        r"(?P<prefix>[А-ЯЁA-Z]{1,4})-(?P<part>\d{1,2})-(?P<year>\d{4})",
+        number,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return number
+    return f"{match.group('prefix')}-{match.group('part')}/{match.group('year')}"
+
 # Метаданные документов компании
 def _add_company_metadata(
     title: str,
@@ -79,7 +90,10 @@ def _add_company_metadata(
             flags=re.IGNORECASE,
         )
         if match:
-            metadata["document_number"] = match.group("number")
+            # Filenames use hyphens where the contracts themselves use a slash.
+            metadata["document_number"] = _canonical_document_number(
+                match.group("number")
+            )
             counterparty = (match.group("counterparty") or "").strip()
             if counterparty:
                 metadata["counterparty"] = counterparty
@@ -98,7 +112,9 @@ def _add_company_metadata(
             flags=re.IGNORECASE,
         )
         if related_match:
-            metadata["related_document_number"] = related_match.group(1)
+            metadata["related_document_number"] = _canonical_document_number(
+                related_match.group(1)
+            )
 
     elif normalized_title.startswith("письмо"):
         metadata["document_type"] = "compliance_letter"

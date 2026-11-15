@@ -6,6 +6,7 @@ from llm_client import LLMClient
 from gen_config import GenConfig
 from gen_postprocess import FALLBACK, clean_answer, verify_citations
 from gen_prompt import build_messages
+from schemas import Chunk
 
 _client: LLMClient | None = None
 
@@ -20,7 +21,7 @@ def _default_client() -> LLMClient:
 
 def generate_answer(
     question: str,
-    contexts: list[str],
+    contexts: list[str | Chunk],
     *,
     client: LLMClient | None = None,
 ) -> str:
@@ -35,4 +36,8 @@ def generate_answer(
 
     messages = build_messages(question, contexts)
     raw = (client or _default_client()).chat(messages)
-    return verify_citations(clean_answer(raw), contexts)
+    citation_contexts = [
+        context.text if isinstance(context, Chunk) else context
+        for context in contexts
+    ]
+    return verify_citations(clean_answer(raw), citation_contexts)
