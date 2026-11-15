@@ -1,4 +1,7 @@
-SYSTEM = """Ты — корпоративный юридический ассистент. Отвечаешь сотрудникам строго по предоставленному контексту.
+from schemas import Chunk
+
+
+SYSTEM = """Ты — корпоративный юридический ассистент. Отвечай строго по контексту.
 
 Правила:
 1. Используй только сведения, прямо подтверждённые фрагментами. Не используй знания модели и не делай выводов, которых документы не подтверждают.
@@ -18,10 +21,47 @@ SYSTEM = """Ты — корпоративный юридический асси�
 """
 
 
-def build_messages(question: str, contexts: list[str], max_ctx: int = 8) -> list[dict]:
+METADATA_LABELS = {
+    "title": "Название",
+    "document_type": "Тип",
+    "document_number": "Номер",
+    "counterparty": "Контрагент",
+    "related_document_number": "Связанный договор",
+    "amendment_number": "Номер допсоглашения",
+    "document_date": "Дата",
+    "revision_year": "Год редакции",
+    "status": "Статус",
+    "act_label": "Нормативный акт",
+    "article_number": "Статья",
+    "edition_label": "Редакция",
+}
+
+
+def _format_context(context: str | Chunk) -> str:
+    if isinstance(context, str):
+        return context.strip()
+
+    metadata = context.metadata or {}
+    fields = [
+        f"{label}: {metadata[key]}"
+        for key, label in METADATA_LABELS.items()
+        if metadata.get(key) not in (None, "")
+    ]
+    if metadata.get("status") == "not_in_force":
+        fields.append("Статус документа: редакция утратила силу")
+    header = "\n".join(fields)
+    body = context.text.strip()
+    return f"{header}\n{body}" if header else body
+
+
+def build_messages(
+    question: str,
+    contexts: list[str | Chunk],
+    max_ctx: int = 8,
+) -> list[dict]:
     parts = []
     for i, c in enumerate(contexts[:max_ctx], 1):
-        parts.append(f"[{i}] {c.strip()}")
+        parts.append(f"[{i}] {_format_context(c)}")
     block = "\n\n".join(parts)
 
     user = f"Контекст:\n{block}\n\nВопрос: {question}\n\nОтвет:"
