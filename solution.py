@@ -9,8 +9,12 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 from application import App
 from gen_postprocess import FALLBACK
+
+load_dotenv()
 
 KNOWLEDGE_BASE_NAMES = ("kb.zip", "knowledge_base.zip", "knowledge-base.zip")
 

@@ -21,14 +21,12 @@ LEGAL_SEPARATORS = [
     "",
 ]
 
-
 def _clean_text(text: str) -> str:
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     text = text.replace("\u00a0", " ")
     text = re.sub(r"[ \t]+\n", "\n", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
-
 
 def chunk_document(
     document: Document,
@@ -44,7 +42,6 @@ def chunk_document(
         raise ValueError("max_chars должен быть положительным")
     if overlap_chars < 0 or overlap_chars >= max_chars:
         raise ValueError("overlap_chars должен быть от 0 до max_chars - 1")
-
     text = _clean_text(document.text)
     if not text:
         return []
@@ -53,7 +50,6 @@ def chunk_document(
     body_size = max_chars - len(prefix)
     if body_size <= 0:
         raise ValueError("Имя файла слишком длинное для выбранного max_chars")
-
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=body_size,
         chunk_overlap=min(overlap_chars, body_size - 1),
@@ -62,7 +58,6 @@ def chunk_document(
         keep_separator=True,
         length_function=len,
     )
-
     chunks = []
     for piece in splitter.split_text(text):
         piece = piece.strip()
@@ -73,10 +68,10 @@ def chunk_document(
                     document_id=document.id,
                     text=prefix + piece,
                     embedding=None,
+                    metadata=dict(document.metadata),
                 )
             )
     return chunks
-
 
 def chunk_documents(
     documents: Sequence[Document],
@@ -91,7 +86,6 @@ def chunk_documents(
         if document.id in seen_document_ids:
             raise ValueError(f"Повторяется Document.id={document.id}")
         seen_document_ids.add(document.id)
-
         document_chunks = chunk_document(
             document,
             start_chunk_id=next_chunk_id,
