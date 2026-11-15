@@ -83,6 +83,32 @@ def _has_number(number: str, text: str) -> bool:
     return re.search(rf"(?<![\d.]){re.escape(number)}(?![\d])", text) is not None
 
 
+_CITATION_STOP_WORDS = {
+    "п", "пункт", "ст", "статья", "ч", "часть", "договор", "документ",
+    "источник", "ред", "редакция", "от", "по", "в", "и", "№",
+}
+
+
+def _normalize_words(text: str) -> list[str]:
+    return re.findall(r"[a-zа-яё0-9]+", text.lower())
+
+
+def _citation_matches_context(citation: str, number: str, contexts: list[str]) -> bool:
+    """Require the cited number and at least one document-specific label together."""
+    label = _REF_RE.sub(" ", citation)
+    label_words = [
+        word for word in _normalize_words(label)
+        if word not in _CITATION_STOP_WORDS and len(word) > 1
+    ]
+    for context in contexts:
+        context_words = _normalize_words(context)
+        if not _has_number(number, context):
+            continue
+        if not label_words or any(word in context_words for word in label_words):
+            return True
+    return False
+
+
 def verify_citations(answer: str, contexts: list[str]) -> str:
     """Убирает ссылки на пункты, которых нет в переданном контексте.
 
@@ -93,16 +119,21 @@ def verify_citations(answer: str, contexts: list[str]) -> str:
     if not contexts:
         return answer
 
-    text = " ".join(contexts)
-
-    def keep(match: re.Match[str]) -> str:
-        numbers = _REF_RE.findall(match.group(0))
-        if numbers and not all(_has_number(number, text) for number in numbers):
+    def keep_citation(citation: str, original: str) -> str:
+        numbers = _REF_RE.findall(citation)
+        if numbers and not all(
+            _citation_matches_context(citation, number, contexts)
+            for number in numbers
+        ):
             return ""
-        return match.group(0)
+        return original
 
-    result = _PAREN_RE.sub(keep, answer)
-    result = _SOURCE_RE.sub(keep, result)
+    result = _PAREN_RE.sub(
+        lambda match: keep_citation(match.group(1), match.group(0)), answer
+    )
+    result = _SOURCE_RE.sub(
+        lambda match: keep_citation(match.group(0), match.group(0)), result
+    )
     result = re.sub(r"\s+([,.;:])", r"\1", result)
     result = " ".join(result.split()).strip()
 
